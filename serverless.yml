@@ -64,6 +64,8 @@ functions:
           method: post
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - catalog.write
 
   listarProductos:
     handler: src/catalogo/listarProductos.handler
@@ -73,8 +75,10 @@ functions:
           method: get
           authorizer:
             name: entraAuthorizer
-          # Nota: requiere estar autenticado (JWT válido), pero la Lambda
-          # no exige un rol específico -- cualquier rol autenticado puede listar.
+            scopes:
+              - catalog.read
+          # Nota: requiere estar autenticado (JWT válido) y tener el scope
+          # catalog.read, pero la Lambda no exige un rol específico.
 
   obtenerProducto:
     handler: src/catalogo/obtenerPorIdProducto.handler
@@ -84,6 +88,8 @@ functions:
           method: get
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - catalog.read
 
   editarProducto:
     handler: src/catalogo/editarProducto.handler
@@ -93,6 +99,8 @@ functions:
           method: put
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - catalog.write
 
   eliminarProducto:
     handler: src/catalogo/eliminarProducto.handler
@@ -102,6 +110,8 @@ functions:
           method: delete
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - catalog.write
 
   # ---------- Órdenes ----------
   crearOrden:
@@ -112,6 +122,8 @@ functions:
           method: post
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - orders.write
 
   listarOrdenes:
     handler: src/ordenes/listarOrdenes.handler
@@ -121,6 +133,8 @@ functions:
           method: get
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - orders.read
 
   obtenerOrden:
     handler: src/ordenes/obtenerOrden.handler
@@ -130,6 +144,8 @@ functions:
           method: get
           authorizer:
             name: entraAuthorizer
+            scopes:
+              - orders.read
 
   cambiarEstadoOrden:
     handler: src/ordenes/cambiarEstadoOrden.handler
@@ -139,7 +155,8 @@ functions:
           method: patch
           authorizer:
             name: entraAuthorizer
-
+            scopes:
+              - orders.write
 resources:
   Resources:
     TablaProductos:
