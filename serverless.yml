@@ -1,0 +1,183 @@
+service: pedidos360-backend
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-dotenv-plugin
+
+package:
+  individually: true
+  patterns:
+    - '!.git/**'
+    - '!.github/**'
+    - '!node_modules/.cache/**'
+
+custom:
+  tablaProductos: Productos-${sls:stage}
+  tablaOrdenes: Ordenes-${sls:stage}
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${env:AWS_REGION, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+
+  # AWS Academy Learner Lab: no se pueden crear roles IAM nuevos.
+  # Se referencia el LabRole ya existente por su ARN en vez de dejar
+  # que Serverless intente crear uno propio.
+  iam:
+    role: ${env:AWS_ROLE_ARN}
+
+  environment:
+    TABLA_PRODUCTOS: ${self:custom.tablaProductos}
+    TABLA_ORDENES: ${self:custom.tablaOrdenes}
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - http://localhost:5173
+        # Agregar aquí el dominio real de producción cuando exista
+      allowedHeaders:
+        - Authorization
+        - Content-Type
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+    authorizers:
+      entraAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: https://login.microsoftonline.com/${env:AZURE_TENANT_ID}/v2.0
+        audience:
+          - ${env:AZURE_API_AUDIENCE}
+
+functions:
+  # ---------- Catálogo ----------
+  crearProducto:
+    handler: src/catalogo/crearProducto.handler
+    events:
+      - httpApi:
+          path: /productos
+          method: post
+          authorizer:
+            name: entraAuthorizer
+
+  listarProductos:
+    handler: src/catalogo/listarProductos.handler
+    events:
+      - httpApi:
+          path: /productos
+          method: get
+          authorizer:
+            name: entraAuthorizer
+          # Nota: requiere estar autenticado (JWT válido), pero la Lambda
+          # no exige un rol específico -- cualquier rol autenticado puede listar.
+
+  editarProducto:
+    handler: src/catalogo/editarProducto.handler
+    events:
+      - httpApi:
+          path: /productos/{id}
+          method: put
+          authorizer:
+            name: entraAuthorizer
+
+  eliminarProducto:
+    handler: src/catalogo/eliminarProducto.handler
+    events:
+      - httpApi:
+          path: /productos/{id}
+          method: delete
+          authorizer:
+            name: entraAuthorizer
+
+  # ---------- Órdenes ----------
+  crearOrden:
+    handler: src/ordenes/crearOrden.handler
+    events:
+      - httpApi:
+          path: /orders
+          method: post
+          authorizer:
+            name: entraAuthorizer
+
+  listarOrdenes:
+    handler: src/ordenes/listarOrdenes.handler
+    events:
+      - httpApi:
+          path: /orders
+          method: get
+          authorizer:
+            name: entraAuthorizer
+
+  obtenerOrden:
+    handler: src/ordenes/obtenerOrden.handler
+    events:
+      - httpApi:
+          path: /orders/{id}
+          method: get
+          authorizer:
+            name: entraAuthorizer
+
+  cambiarEstadoOrden:
+    handler: src/ordenes/cambiarEstadoOrden.handler
+    events:
+      - httpApi:
+          path: /orders/{id}/estado
+          method: patch
+          authorizer:
+            name: entraAuthorizer
+
+resources:
+  Resources:
+    TablaProductos:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablaProductos}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: productId
+            AttributeType: S
+          - AttributeName: categoria
+            AttributeType: S
+        KeySchema:
+          - AttributeName: productId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CategoriaIndex
+            KeySchema:
+              - AttributeName: categoria
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    TablaOrdenes:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablaOrdenes}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: orderId
+            AttributeType: S
+          - AttributeName: creadoPor
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CreadoPorIndex
+            KeySchema:
+              - AttributeName: creadoPor
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+  Outputs:
+    ApiUrl:
+      Description: URL base del API Gateway desplegado
+      Value:
+        Fn::Sub: 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'

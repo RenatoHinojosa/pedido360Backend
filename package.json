@@ -1,0 +1,20 @@
+{
+  "name": "pedidos360-backend",
+  "version": "1.0.0",
+  "description": "Backend serverless de Pedidos360 (Catálogo + Órdenes) sobre AWS Lambda, API Gateway HTTP API y DynamoDB",
+  "type": "module",
+  "scripts": {
+    "deploy": "serverless deploy --stage dev",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove --stage dev",
+    "logs:catalogo": "serverless logs -f crearProducto --stage dev -t"
+  },
+  "devDependencies": {
+    "serverless": "^3.38.0",
+    "serverless-dotenv-plugin": "^6.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0"
+  }
+}
