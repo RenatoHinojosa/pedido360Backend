@@ -13,8 +13,8 @@ package:
     - '!node_modules/.cache/**'
 
 custom:
-  tablaProductos: Productos-${sls:stage}
-  tablaOrdenes: Ordenes-${sls:stage}
+  tablaProductos: Productos
+  tablaOrdenes: Ordenes
 
 provider:
   name: aws
@@ -23,10 +23,9 @@ provider:
   stage: ${opt:stage, 'dev'}
 
   # AWS Academy Learner Lab: no se pueden crear roles IAM nuevos.
-  # Se referencia el LabRole ya existente por su ARN en vez de dejar
-  # que Serverless intente crear uno propio.
+  # Se referencia el LabRole ya existente usando el ID de la cuenta.
   iam:
-    role: ${env:AWS_ROLE_ARN}
+    role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:AWS_ROLE_NAME, 'LabRole'}
 
   environment:
     TABLA_PRODUCTOS: ${self:custom.tablaProductos}
@@ -76,6 +75,15 @@ functions:
             name: entraAuthorizer
           # Nota: requiere estar autenticado (JWT válido), pero la Lambda
           # no exige un rol específico -- cualquier rol autenticado puede listar.
+
+  obtenerProducto:
+    handler: src/catalogo/obtenerPorIdProducto.handler
+    events:
+      - httpApi:
+          path: /productos/{id}
+          method: get
+          authorizer:
+            name: entraAuthorizer
 
   editarProducto:
     handler: src/catalogo/editarProducto.handler

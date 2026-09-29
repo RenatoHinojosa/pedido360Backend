@@ -1,16 +1,24 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { parseRoles } from "../shared/parseRoles.mjs";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const TABLA_ORDENES = "Ordenes";
+const TABLA_PRODUCTOS = "Productos";
 
-const TABLA_ORDENES = process.env.TABLA_ORDENES;
-const TABLA_PRODUCTOS = process.env.TABLA_PRODUCTOS;
+function parseRoles(rolesRaw) {
+  if (!rolesRaw) return [];
+  if (Array.isArray(rolesRaw)) return rolesRaw;
+  const str = String(rolesRaw).trim();
+  const cleaned = str.replace(/^\[|\]$/g, "");
+  return cleaned.split(",").map((r) => r.trim()).filter(Boolean);
+}
 
 // Máquina de estados del caso Pedidos360:
 // CREADO -> ACEPTADO -> EN_PREPARACION -> DESPACHADO -> ENTREGADO
 // con CANCELADO como salida posible desde CREADO, ACEPTADO o EN_PREPARACION.
+// Regla clave del enunciado: "no se puede despachar sin aceptar" — no se
+// pueden saltar pasos, cada transición se valida contra esta tabla.
 const TRANSICIONES_VALIDAS = {
   CREADO: ["ACEPTADO", "CANCELADO"],
   ACEPTADO: ["EN_PREPARACION", "CANCELADO"],
@@ -20,6 +28,8 @@ const TRANSICIONES_VALIDAS = {
   CANCELADO: [],
 };
 
+// Estados en los que el stock YA fue descontado (para saber si hay que
+// devolverlo al cancelar un pedido que pasó por ACEPTADO)
 const ESTADOS_CON_STOCK_DESCONTADO = ["ACEPTADO", "EN_PREPARACION", "DESPACHADO"];
 
 export const handler = async (event) => {
@@ -78,6 +88,9 @@ export const handler = async (event) => {
       };
     }
 
+    // Permisos: un Cliente solo puede cancelar su propio pedido, y solo
+    // mientras sigue en CREADO (antes de que el Operador lo acepte).
+    // Cualquier otra transición requiere rol OPERADOR.
     const esCancelacionTempranaDelCliente =
       nuevoEstado === "CANCELADO" &&
       estadoActual === "CREADO" &&
@@ -92,6 +105,7 @@ export const handler = async (event) => {
       };
     }
 
+    // Efecto sobre el stock: se descuenta al ACEPTAR (regla del caso)
     if (nuevoEstado === "ACEPTADO") {
       await docClient.send(new UpdateCommand({
         TableName: TABLA_PRODUCTOS,
@@ -102,6 +116,7 @@ export const handler = async (event) => {
       }));
     }
 
+    // Si se cancela un pedido que ya tenía el stock descontado, se devuelve
     if (nuevoEstado === "CANCELADO" && ESTADOS_CON_STOCK_DESCONTADO.includes(estadoActual)) {
       await docClient.send(new UpdateCommand({
         TableName: TABLA_PRODUCTOS,

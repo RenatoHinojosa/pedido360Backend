@@ -1,8 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, DeleteCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const TABLA_PRODUCTOS = "Productos";
 
 function parseRoles(rolesRaw) {
   if (!rolesRaw) return [];
@@ -12,20 +13,23 @@ function parseRoles(rolesRaw) {
   return cleaned.split(",").map(r => r.trim()).filter(Boolean);
 }
 
+const ROLES_PERMITIDOS = ["ADMIN", "OPERADOR", "CLIENTE"];
+
 export const handler = async (event) => {
   const claims = event.requestContext?.authorizer?.jwt?.claims || {};
   const roles = parseRoles(claims.roles);
 
-  if (!roles.includes("ADMIN")) {
+  if (!roles.some((rol) => ROLES_PERMITIDOS.includes(rol))) {
     return {
       statusCode: 403,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mensaje: "Acceso denegado: se requiere rol ADMIN" }),
+      body: JSON.stringify({ mensaje: "Acceso denegado: se requiere rol ADMIN, OPERADOR o CLIENTE" }),
     };
   }
 
   try {
     const productId = event.pathParameters?.id;
+
     if (!productId) {
       return {
         statusCode: 400,
@@ -34,12 +38,12 @@ export const handler = async (event) => {
       };
     }
 
-    const existing = await docClient.send(new GetCommand({
-      TableName: "Productos",
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLA_PRODUCTOS,
       Key: { productId },
     }));
 
-    if (!existing.Item) {
+    if (!result.Item) {
       return {
         statusCode: 404,
         headers: { "Content-Type": "application/json" },
@@ -47,15 +51,13 @@ export const handler = async (event) => {
       };
     }
 
-    await docClient.send(new DeleteCommand({
-      TableName: "Productos",
-      Key: { productId },
-    }));
-
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mensaje: "Producto eliminado", productId }),
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ producto: result.Item }),
     };
   } catch (error) {
     return {

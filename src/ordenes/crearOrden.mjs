@@ -1,14 +1,22 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
-import { parseRoles } from "../shared/parseRoles.mjs";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
-const TABLA_PRODUCTOS = process.env.TABLA_PRODUCTOS;
-const TABLA_ORDENES = process.env.TABLA_ORDENES;
-const ROLES_PERMITIDOS = ["CLIENTE", "OPERADOR"];
+const TABLA_PRODUCTOS = "Productos";
+const TABLA_ORDENES = "Ordenes";
+
+function parseRoles(rolesRaw) {
+  if (!rolesRaw) return [];
+  if (Array.isArray(rolesRaw)) return rolesRaw;
+  const str = String(rolesRaw).trim();
+  const cleaned = str.replace(/^\[|\]$/g, "");
+  return cleaned.split(",").map((r) => r.trim()).filter(Boolean);
+}
+
+const ROLES_PERMITIDOS = ["CLIENTE", "OPERADOR", "ADMIN"];
 
 export const handler = async (event) => {
   const claims = event.requestContext?.authorizer?.jwt?.claims || {};
@@ -20,7 +28,7 @@ export const handler = async (event) => {
     return {
       statusCode: 403,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mensaje: "Acceso denegado: se requiere rol CLIENTE u OPERADOR" }),
+      body: JSON.stringify({ mensaje: "Acceso denegado: se requiere rol CLIENTE, OPERADOR o ADMIN" }),
     };
   }
 
@@ -36,6 +44,10 @@ export const handler = async (event) => {
       };
     }
 
+    // Solo verificamos que el producto exista y que haya stock suficiente.
+    // IMPORTANTE: aquí NO se descuenta stock. Según el caso, "el stock decrece
+    // al ACEPTAR el pedido", no al crearlo. El descuento real ocurre en
+    // cambiar-estado-orden cuando el Operador pasa el pedido a ACEPTADO.
     const productoResult = await docClient.send(new GetCommand({
       TableName: TABLA_PRODUCTOS,
       Key: { productId },

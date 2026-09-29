@@ -4,23 +4,26 @@ import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
-const TABLA_PRODUCTOS = process.env.TABLA_PRODUCTOS;
-
 export const handler = async (event) => {
   try {
     const categoria = event.queryStringParameters?.categoria;
-
     let result;
 
     if (categoria) {
+      // Filtrar por categoría usando el índice (Query = rápido y barato)
       result = await docClient.send(new QueryCommand({
-        TableName: TABLA_PRODUCTOS,
+        TableName: "Productos",
         IndexName: "CategoriaIndex",
         KeyConditionExpression: "categoria = :categoria",
-        ExpressionAttributeValues: { ":categoria": categoria },
+        ExpressionAttributeValues: {
+          ":categoria": categoria,
+        },
       }));
     } else {
-      result = await docClient.send(new ScanCommand({ TableName: TABLA_PRODUCTOS }));
+      // Listar todos (Scan = revisa toda la tabla)
+      result = await docClient.send(new ScanCommand({
+        TableName: "Productos",
+      }));
     }
 
     return {

@@ -1,12 +1,19 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { parseRoles } from "../shared/parseRoles.mjs";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const TABLA_ORDENES = "Ordenes";
 
-const TABLA_ORDENES = process.env.TABLA_ORDENES;
-const ROLES_PERMITIDOS = ["CLIENTE", "OPERADOR", "ADMIN"];
+function parseRoles(rolesRaw) {
+  if (!rolesRaw) return [];
+  if (Array.isArray(rolesRaw)) return rolesRaw;
+  const str = String(rolesRaw).trim();
+  const cleaned = str.replace(/^\[|\]$/g, "");
+  return cleaned.split(",").map((r) => r.trim()).filter(Boolean);
+}
+
+const ROLES_PERMITIDOS = ["CLIENTE", "OPERADOR","ADMIN"];
 
 export const handler = async (event) => {
   const claims = event.requestContext?.authorizer?.jwt?.claims || {};
@@ -26,8 +33,10 @@ export const handler = async (event) => {
     let result;
 
     if (esOperador) {
+      // Operador ve todos los pedidos de todos los clientes
       result = await docClient.send(new ScanCommand({ TableName: TABLA_ORDENES }));
     } else {
+      // Cliente solo ve los suyos (requiere el GSI CreadoPorIndex sobre "creadoPor")
       result = await docClient.send(new QueryCommand({
         TableName: TABLA_ORDENES,
         IndexName: "CreadoPorIndex",

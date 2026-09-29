@@ -26,7 +26,8 @@ cp .env.example .env
 
 Rellena `.env` con:
 - Las credenciales del Lab (botón **AWS Details → Show** en el Learner Lab)
-- `AWS_ROLE_ARN`: el ARN del `LabRole` (aparece también en AWS Details)
+- `AWS_ACCOUNT_ID`: el ID de la cuenta asignada al laboratorio
+- `AWS_ROLE_NAME`: `LabRole` (rol existente en AWS Academy)
 - `AZURE_API_AUDIENCE`: el Client ID de tu App Registration del backend (sin `api://`)
 - `AZURE_TENANT_ID`: el Tenant ID de tu Entra ID
 
@@ -39,8 +40,8 @@ npm run deploy
 ```
 
 Esto crea (o actualiza) en tu cuenta de AWS:
-- Las tablas `Productos-dev` y `Ordenes-dev` con sus índices
-- Las 8 funciones Lambda
+- Las tablas `Productos` y `Ordenes` con sus índices
+- Las 9 funciones Lambda
 - El API Gateway HTTP API con todas las rutas
 - El JWT Authorizer conectado a tu tenant de Entra ID
 
@@ -68,9 +69,9 @@ npm run remove
 
 ## Despliegue automático vía GitHub Actions
 
-Ver `.github/workflows/deploy.yml`. Se dispara en cada `push` a `main` y usa las mismas variables, leídas desde **GitHub Secrets** en vez del `.env` local (Settings → Secrets and variables → Actions).
+Ver `.github/workflows/deploy.yml`. Se dispara en cada `push` a `deploy` y usa las mismas variables, leídas desde **GitHub Secrets** en vez del `.env` local (Settings → Secrets and variables → Actions).
 
 Secrets a configurar en el repo:
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_ROLE_ARN`, `AZURE_API_AUDIENCE`, `AZURE_TENANT_ID`
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_ACCOUNT_ID`, `AWS_ROLE_NAME`, `AWS_REGION`, `AZURE_API_AUDIENCE`, `AZURE_TENANT_ID`
 
 ⚠️ Como las credenciales del Lab expiran, este workflow solo va a funcionar mientras el Lab esté activo con credenciales vigentes en los Secrets — hay que actualizarlos ahí también cuando caduquen.
