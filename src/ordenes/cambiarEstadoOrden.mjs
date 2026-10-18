@@ -1,5 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { publicarCambioEstado } from "../mensajeria/productores/ordenesproductor.mjs";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -136,6 +137,13 @@ export const handler = async (event) => {
       },
       ReturnValues: "ALL_NEW",
     }));
+
+    // Mensajería asíncrona: avisar del cambio sin afectar la lógica existente
+    await publicarCambioEstado({
+      orden: result.Attributes,
+      estadoAnterior: estadoActual,
+      correlationId: event.requestContext?.requestId,
+    });
 
     return {
       statusCode: 200,
