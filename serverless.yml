@@ -15,6 +15,7 @@ package:
 custom:
   tablaProductos: Productos
   tablaOrdenes: Ordenes
+  tablaNotificaciones: Notificaciones
 
   mensajeria:
     topicEventosOrden: pedidos360-eventos-orden
@@ -212,6 +213,18 @@ resources:
             Projection:
               ProjectionType: ALL
 
+    TablaNotificaciones:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablaNotificaciones}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: notificationId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: notificationId
+            KeyType: HASH
+
 # ---------- Mensajería: flujo de notificaciones ----------
 
     # El "megáfono": un solo aviso que se reparte a quien esté suscrito
@@ -271,6 +284,22 @@ resources:
         FilterPolicy:
           tipo:
             - ${self:custom.mensajeria.notificaciones.tipoMensaje}
+
+  # ---------- Mensajería: consumidores ----------
+  enviarNotificacion:
+    handler: src/mensajeria/consumidores/notificaciones/enviarNotificacion.handler
+    timeout: 10
+    environment:
+      TABLA_NOTIFICACIONES: ${self:custom.tablaNotificaciones}
+      COLA_NOTIFICACIONES_DLQ_URL:
+        Ref: ColaNotificacionesDLQ
+      MAX_REINTENTOS: ${self:custom.mensajeria.notificaciones.maxReintentos}
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ColaNotificaciones, Arn]
+          batchSize: 5
+          functionResponseType: ReportBatchItemFailures
 
   Outputs:
     ApiUrl:
