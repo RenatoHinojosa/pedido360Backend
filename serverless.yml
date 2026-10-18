@@ -16,6 +16,15 @@ custom:
   tablaProductos: Productos
   tablaOrdenes: Ordenes
 
+  mensajeria:
+    topicEventosOrden: pedidos360-eventos-orden
+    notificaciones:
+      cola: pedidos360-notificaciones
+      dlq: pedidos360-notificaciones-dlq
+      tipoMensaje: notificacion
+      maxReintentos: 3
+
+
 provider:
   name: aws
   runtime: nodejs20.x
@@ -28,9 +37,11 @@ provider:
     role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:AWS_ROLE_NAME, 'LabRole'}
 
   environment:
+    TIPO_MENSAJE_NOTIFICACION: ${self:custom.mensajeria.notificaciones.tipoMensaje}
     TABLA_PRODUCTOS: ${self:custom.tablaProductos}
     TABLA_ORDENES: ${self:custom.tablaOrdenes}
-
+    TOPIC_EVENTOS_ORDEN_ARN:
+      Ref: TopicEventosOrden
   httpApi:
     cors:
       allowedOrigins:
@@ -201,8 +212,77 @@ resources:
             Projection:
               ProjectionType: ALL
 
+# ---------- Mensajería: flujo de notificaciones ----------
+
+    # El "megáfono": un solo aviso que se reparte a quien esté suscrito
+    TopicEventosOrden:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:custom.mensajeria.topicEventosOrden}
+
+    # La "bandeja de problemas": aquí llegan los mensajes que fallaron demasiadas veces
+    ColaNotificacionesDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.notificaciones.dlq}
+        MessageRetentionPeriod: 1209600   # 14 días para poder revisarlos
+
+    # La "bandeja de tareas" normal
+    ColaNotificaciones:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.notificaciones.cola}
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [ColaNotificacionesDLQ, Arn]
+          maxReceiveCount: ${self:custom.mensajeria.notificaciones.maxReintentos}
+
+    # Permiso para que el megáfono pueda dejar papelitos en esta bandeja
+    ColaNotificacionesPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: ColaNotificaciones
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt: [ColaNotificaciones, Arn]
+              Condition:
+                ArnEquals:
+                  aws:SourceArn:
+                    Ref: TopicEventosOrden
+
+    # La conexión: "a esta bandeja solo mándale los mensajes con tipo = notificacion"
+    SuscripcionNotificaciones:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn:
+          Ref: TopicEventosOrden
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt: [ColaNotificaciones, Arn]
+        RawMessageDelivery: true
+        FilterPolicy:
+          tipo:
+            - ${self:custom.mensajeria.notificaciones.tipoMensaje}
+
   Outputs:
     ApiUrl:
       Description: URL base del API Gateway desplegado
       Value:
         Fn::Sub: 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+    TopicEventosOrdenArn:
+      Description: ARN del topic de eventos de orden
+      Value:
+        Ref: TopicEventosOrden
+    ColaNotificacionesUrl:
+      Description: URL de la cola de notificaciones
+      Value:
+        Ref: ColaNotificaciones
