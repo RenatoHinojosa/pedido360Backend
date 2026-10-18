@@ -169,6 +169,22 @@ functions:
             name: entraAuthorizer
             scopes:
               - orders.write
+ # ---------- Mensajería: consumidores ----------
+  enviarNotificacion:
+    handler: src/mensajeria/consumidores/notificaciones/enviarNotificacion.handler
+    timeout: 10
+    environment:
+      TABLA_NOTIFICACIONES: ${self:custom.tablaNotificaciones}
+      COLA_NOTIFICACIONES_DLQ_URL:
+        Ref: ColaNotificacionesDLQ
+      MAX_REINTENTOS: ${self:custom.mensajeria.notificaciones.maxReintentos}
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ColaNotificaciones, Arn]
+          batchSize: 5
+          functionResponseType: ReportBatchItemFailures
+
 resources:
   Resources:
     TablaProductos:
@@ -285,22 +301,7 @@ resources:
           tipo:
             - ${self:custom.mensajeria.notificaciones.tipoMensaje}
 
-  # ---------- Mensajería: consumidores ----------
-  enviarNotificacion:
-    handler: src/mensajeria/consumidores/notificaciones/enviarNotificacion.handler
-    timeout: 10
-    environment:
-      TABLA_NOTIFICACIONES: ${self:custom.tablaNotificaciones}
-      COLA_NOTIFICACIONES_DLQ_URL:
-        Ref: ColaNotificacionesDLQ
-      MAX_REINTENTOS: ${self:custom.mensajeria.notificaciones.maxReintentos}
-    events:
-      - sqs:
-          arn:
-            Fn::GetAtt: [ColaNotificaciones, Arn]
-          batchSize: 5
-          functionResponseType: ReportBatchItemFailures
-
+ 
   Outputs:
     ApiUrl:
       Description: URL base del API Gateway desplegado
