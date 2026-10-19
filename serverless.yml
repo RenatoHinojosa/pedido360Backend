@@ -25,6 +25,12 @@ custom:
       tipoMensaje: notificacion
       maxReintentos: 3
 
+    kitchen:
+      cola: q-kitchen
+      dlq: q-kitchen-dlq
+      tipoMensaje: PedidoAceptado
+      maxReintentos: 3
+
 
 provider:
   name: aws
@@ -300,6 +306,59 @@ resources:
         FilterPolicy:
           tipo:
             - ${self:custom.mensajeria.notificaciones.tipoMensaje}
+
+  # ---------- Mensajería: flujo de Kitchen ----------
+
+    ColaKitchenDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.kitchen.dlq}
+        MessageRetentionPeriod: 1209600
+
+    ColaKitchen:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.kitchen.cola}
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [ColaKitchenDLQ, Arn]
+          maxReceiveCount: ${self:custom.mensajeria.kitchen.maxReintentos}
+
+    ColaKitchenPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: ColaKitchen
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt: [ColaKitchen, Arn]
+              Condition:
+                ArnEquals:
+                  aws:SourceArn:
+                    Ref: TopicEventosOrden
+
+    SuscripcionKitchen:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn:
+          Ref: TopicEventosOrden
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt: [ColaKitchen, Arn]
+        RawMessageDelivery: true
+        FilterPolicy:
+          tipo:
+            - ${self:custom.mensajeria.kitchen.tipoMensaje}
+
+
+
 
  
   Outputs:
