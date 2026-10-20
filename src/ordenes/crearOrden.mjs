@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
+import { publicarCambioEstado } from "../mensajeria/productores/ordenesproductor.mjs";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -89,6 +90,22 @@ export const handler = async (event) => {
       TableName: TABLA_ORDENES,
       Item: orden,
     }));
+
+    console.log("[ordenes] Pedido creado; iniciando publicación del evento", {
+      orderId: orden.orderId,
+      estadoNuevo: orden.estado,
+    });
+
+    await publicarCambioEstado({
+      orden,
+      estadoAnterior: null,
+      correlationId: event.requestContext?.requestId,
+    });
+
+    console.log("[ordenes] Publicación del evento de creación finalizada", {
+      orderId: orden.orderId,
+      estadoNuevo: orden.estado,
+    });
 
     return {
       statusCode: 201,
