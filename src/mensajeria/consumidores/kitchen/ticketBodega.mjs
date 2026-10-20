@@ -2,8 +2,17 @@
 export const handler = async (event) => {
   const batchItemFailures = [];
 
+  console.log("[ticket-bodega] Lote recibido", {
+    cantidadRegistros: event.Records?.length ?? 0,
+  });
+
   for (const record of event.Records ?? []) {
     try {
+      console.log("[ticket-bodega] Mensaje recibido desde SQS", {
+        messageId: record.messageId,
+        approximateReceiveCount: record.attributes?.ApproximateReceiveCount,
+      });
+
       const mensaje = JSON.parse(record.body);
       const pedido = mensaje.payload;
 
@@ -32,7 +41,12 @@ export const handler = async (event) => {
       );
     } catch (error) {
       console.error(
-        `[ticket-bodega] Error al procesar mensaje ${record.messageId}: ${error.message}`
+        `[ticket-bodega] Error al procesar mensaje ${record.messageId}`,
+        {
+          errorName: error.name,
+          errorMessage: error.message,
+          errorStack: error.stack,
+        }
       );
 
       batchItemFailures.push({
