@@ -82,8 +82,17 @@ async function enviarADLQ(record, error) {
 export const handler = async (event) => {
   const batchItemFailures = [];
 
+  console.log("[notificaciones] Lote recibido", {
+    cantidadRegistros: event.Records?.length ?? 0,
+  });
+
   for (const record of event.Records) {
     const intento = record.attributes?.ApproximateReceiveCount;
+    console.log("[notificaciones] Mensaje recibido desde SQS", {
+      messageId: record.messageId,
+      approximateReceiveCount: intento,
+    });
+
     try {
       const envelope = leerEnvelope(record.body);
       const asunto = await enviarNotificacion(envelope);

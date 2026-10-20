@@ -311,6 +311,7 @@ resources:
         Endpoint:
           Fn::GetAtt: [ColaNotificaciones, Arn]
         RawMessageDelivery: true
+        FilterPolicyScope: MessageAttributes
         FilterPolicy:
           tipo:
             - ${self:custom.mensajeria.notificaciones.tipoMensaje}
@@ -361,6 +362,7 @@ resources:
         Endpoint:
           Fn::GetAtt: [ColaKitchen, Arn]
         RawMessageDelivery: true
+        FilterPolicyScope: MessageAttributes
         FilterPolicy:
           tipo:
             - ${self:custom.mensajeria.kitchen.tipoMensaje}
@@ -383,3 +385,7 @@ resources:
       Description: URL de la cola de notificaciones
       Value:
         Ref: ColaNotificaciones
+    ColaKitchenUrl:
+      Description: URL de la cola de Kitchen
+      Value:
+        Ref: ColaKitchen
