@@ -22,13 +22,18 @@ custom:
     notificaciones:
       cola: pedidos360-notificaciones
       dlq: pedidos360-notificaciones-dlq
-      tipoMensaje: notificacion
       maxReintentos: 3
 
     kitchen:
       cola: q-kitchen
       dlq: q-kitchen-dlq
       tipoMensaje: PedidoAceptado
+      maxReintentos: 3
+
+    boletas:
+      cola: q-boletas
+      dlq: q-boletas-dlq
+      tipoMensaje: PedidoDespachado
       maxReintentos: 3
 
 
@@ -44,7 +49,6 @@ provider:
     role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:AWS_ROLE_NAME, 'LabRole'}
 
   environment:
-    TIPO_MENSAJE_NOTIFICACION: ${self:custom.mensajeria.notificaciones.tipoMensaje}
     TABLA_PRODUCTOS: ${self:custom.tablaProductos}
     TABLA_ORDENES: ${self:custom.tablaOrdenes}
     TOPIC_EVENTOS_ORDEN_ARN:
@@ -199,6 +203,15 @@ functions:
             Fn::GetAtt: [ColaKitchen, Arn]
           batchSize: 5
           functionResponseType: ReportBatchItemFailures
+  generarBoleta:
+    handler: src/mensajeria/consumidores/boletas/generarBoleta.handler
+    timeout: 10
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ColaBoletas, Arn]
+          batchSize: 5
+          functionResponseType: ReportBatchItemFailures
 resources:
   Resources:
     TablaProductos:
@@ -275,7 +288,7 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: ${self:custom.mensajeria.notificaciones.cola}
-        VisibilityTimeout: 60
+        VisibilityTimeout: 30
         RedrivePolicy:
           deadLetterTargetArn:
             Fn::GetAtt: [ColaNotificacionesDLQ, Arn]
@@ -301,7 +314,7 @@ resources:
                   aws:SourceArn:
                     Ref: TopicEventosOrden
 
-    # La conexión: "a esta bandeja solo mándale los mensajes con tipo = notificacion"
+    # Correo recibe todos los eventos publicados en el topic.
     SuscripcionNotificaciones:
       Type: AWS::SNS::Subscription
       Properties:
@@ -311,10 +324,6 @@ resources:
         Endpoint:
           Fn::GetAtt: [ColaNotificaciones, Arn]
         RawMessageDelivery: true
-        FilterPolicyScope: MessageAttributes
-        FilterPolicy:
-          tipo:
-            - ${self:custom.mensajeria.notificaciones.tipoMensaje}
 
   # ---------- Mensajería: flujo de Kitchen ----------
 
@@ -328,7 +337,7 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: ${self:custom.mensajeria.kitchen.cola}
-        VisibilityTimeout: 60
+        VisibilityTimeout: 30
         RedrivePolicy:
           deadLetterTargetArn:
             Fn::GetAtt: [ColaKitchenDLQ, Arn]
@@ -367,6 +376,56 @@ resources:
           tipo:
             - ${self:custom.mensajeria.kitchen.tipoMensaje}
 
+  # ---------- Mensajería: flujo de boletas ----------
+
+    ColaBoletasDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.boletas.dlq}
+        MessageRetentionPeriod: 1209600
+
+    ColaBoletas:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:custom.mensajeria.boletas.cola}
+        VisibilityTimeout: 30
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [ColaBoletasDLQ, Arn]
+          maxReceiveCount: ${self:custom.mensajeria.boletas.maxReintentos}
+
+    ColaBoletasPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: ColaBoletas
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: sqs:SendMessage
+              Resource:
+                Fn::GetAtt: [ColaBoletas, Arn]
+              Condition:
+                ArnEquals:
+                  aws:SourceArn:
+                    Ref: TopicEventosOrden
+
+    SuscripcionBoletas:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn:
+          Ref: TopicEventosOrden
+        Protocol: sqs
+        Endpoint:
+          Fn::GetAtt: [ColaBoletas, Arn]
+        RawMessageDelivery: true
+        FilterPolicyScope: MessageAttributes
+        FilterPolicy:
+          tipo:
+            - ${self:custom.mensajeria.boletas.tipoMensaje}
 
 
 
@@ -389,3 +448,7 @@ resources:
       Description: URL de la cola de Kitchen
       Value:
         Ref: ColaKitchen
+    ColaBoletasUrl:
+      Description: URL de la cola de boletas
+      Value:
+        Ref: ColaBoletas
