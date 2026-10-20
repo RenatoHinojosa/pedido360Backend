@@ -19,13 +19,27 @@ export async function publicarComando({ tipo, payload, correlationId }) {
     payload,
   };
 
-  await sns.send(new PublishCommand({
+  console.log("[mensajeria] Publicando evento SNS", {
+    eventId: envelope.eventId,
+    tipo: envelope.tipo,
+    orderId: payload?.orderId,
+    topicArn: TOPIC_ARN,
+  });
+
+  const result = await sns.send(new PublishCommand({
     TopicArn: TOPIC_ARN,
     Message: JSON.stringify(envelope),
     MessageAttributes: {
       tipo: { DataType: "String", StringValue: tipo },
     },
   }));
+
+  console.log("[mensajeria] Evento SNS publicado", {
+    eventId: envelope.eventId,
+    tipo: envelope.tipo,
+    orderId: payload?.orderId,
+    messageId: result.MessageId,
+  });
 
   return envelope;
 }

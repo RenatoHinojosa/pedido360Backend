@@ -138,11 +138,23 @@ export const handler = async (event) => {
       ReturnValues: "ALL_NEW",
     }));
 
+    console.log("[ordenes] Estado actualizado; iniciando publicación de eventos", {
+      orderId,
+      estadoAnterior: estadoActual,
+      estadoNuevo: result.Attributes?.estado,
+      requestId: event.requestContext?.requestId,
+    });
+
     // Mensajería asíncrona: avisar del cambio sin afectar la lógica existente
     await publicarCambioEstado({
       orden: result.Attributes,
       estadoAnterior: estadoActual,
       correlationId: event.requestContext?.requestId,
+    });
+
+    console.log("[ordenes] Publicación de eventos finalizada", {
+      orderId,
+      estadoNuevo: result.Attributes?.estado,
     });
 
     return {
