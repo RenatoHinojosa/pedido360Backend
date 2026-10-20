@@ -61,6 +61,23 @@ Lista todas las rutas desplegadas y sus endpoints.
 npx serverless logs -f crearProducto --stage dev -t
 ```
 
+## Mensajería asíncrona
+
+Cuando una orden cambia de estado, `cambiarEstadoOrden` publica un único evento
+en SNS. El topic lo reparte según las suscripciones:
+
+- `pedidos360-notificaciones` recibe todos los eventos y los procesa
+  `enviarNotificacion`.
+- `q-kitchen` recibe únicamente eventos `PedidoAceptado` y los procesa
+  `ticketBodega`.
+- `q-boletas` recibe únicamente eventos `PedidoDespachado` y los procesa
+  `generarBoleta`.
+
+Cada cola tiene su propia DLQ. Una cola puede aparecer vacía en la consola
+después de una prueba porque su Lambda consumidora elimina el mensaje al
+procesarlo correctamente. Para comprobar el recorrido, revisa los logs de la
+Lambda consumidora correspondiente.
+
 ## 6. Eliminar todo (limpiar la cuenta)
 
 ```bash

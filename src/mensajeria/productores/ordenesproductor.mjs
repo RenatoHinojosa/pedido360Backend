@@ -1,9 +1,5 @@
 import { publicarComando } from "../publicador.mjs";
 
-// Debe coincidir con custom.mensajeria.notificaciones.tipoMensaje del serverless.yml
-const TIPO_NOTIFICACION = process.env.TIPO_MENSAJE_NOTIFICACION || "notificacion";
-
-
 export async function publicarCambioEstado({ orden, estadoAnterior, correlationId }) {
   const payload = {
     orderId: orden.orderId,
@@ -14,46 +10,31 @@ export async function publicarCambioEstado({ orden, estadoAnterior, correlationI
     cantidad: orden.cantidad,
     total: orden.total,
   };
+  const tipo = orden.estado === "ACEPTADO"
+    ? "PedidoAceptado"
+    : orden.estado === "DESPACHADO"
+      ? "PedidoDespachado"
+      : "CambioEstadoPedido";
 
   console.log("[mensajeria] Cambio de estado recibido", {
     orderId: orden.orderId,
     estadoAnterior,
     estadoNuevo: orden.estado,
+    tipo,
     correlationId,
   });
 
   try {
-    // Mantener la notificación que ya existía.
-    console.log("[mensajeria] Preparando notificacion", {
+    console.log("[mensajeria] Preparando evento de pedido", {
       orderId: orden.orderId,
-      tipo: TIPO_NOTIFICACION,
+      tipo,
     });
 
     await publicarComando({
-      tipo: TIPO_NOTIFICACION,
+      tipo,
       correlationId,
       payload,
     });
-
-    // Avisar a Kitchen únicamente cuando el pedido sea aceptado.
-    if (orden.estado === "ACEPTADO") {
-      console.log("[mensajeria] Preparando evento para Kitchen", {
-        orderId: orden.orderId,
-        tipo: "PedidoAceptado",
-      });
-
-      await publicarComando({
-        tipo: "PedidoAceptado",
-        correlationId,
-        payload,
-      });
-    } else {
-      console.log("[mensajeria] No se publica evento para Kitchen", {
-        orderId: orden.orderId,
-        estadoNuevo: orden.estado,
-        motivo: "El estado no es ACEPTADO",
-      });
-    }
   } catch (error) {
     console.error(
       `[mensajeria] No se pudo publicar evento para orderId=${orden.orderId}`,
