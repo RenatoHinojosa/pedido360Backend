@@ -3,24 +3,38 @@ import { publicarComando } from "../publicador.mjs";
 // Debe coincidir con custom.mensajeria.notificaciones.tipoMensaje del serverless.yml
 const TIPO_NOTIFICACION = process.env.TIPO_MENSAJE_NOTIFICACION || "notificacion";
 
+
 export async function publicarCambioEstado({ orden, estadoAnterior, correlationId }) {
+  const payload = {
+    orderId: orden.orderId,
+    estadoAnterior,
+    estadoNuevo: orden.estado,
+    destinatario: orden.creadoPorEmail,
+    productoNombre: orden.productoNombre,
+    cantidad: orden.cantidad,
+    total: orden.total,
+  };
+
   try {
-    const envelope = await publicarComando({
+    // Mantener la notificación que ya existía.
+    await publicarComando({
       tipo: TIPO_NOTIFICACION,
       correlationId,
-      payload: {
-        orderId: orden.orderId,
-        estadoAnterior,
-        estadoNuevo: orden.estado,
-        destinatario: orden.creadoPorEmail,
-        productoNombre: orden.productoNombre,
-        cantidad: orden.cantidad,
-        total: orden.total,
-      },
+      payload,
     });
-    console.log(`[mensajeria] Comando publicado eventId=${envelope.eventId} tipo=${envelope.tipo} orderId=${orden.orderId}`);
+
+    // Avisar a Kitchen únicamente cuando el pedido sea aceptado.
+    if (orden.estado === "ACEPTADO") {
+      await publicarComando({
+        tipo: "PedidoAceptado",
+        correlationId,
+        payload,
+      });
+    }
   } catch (error) {
-    // No se relanza: un fallo de mensajería nunca debe tumbar el cambio de estado
-    console.error(`[mensajeria] No se pudo publicar el comando de orderId=${orden.orderId}:`, error.message);
+    console.error(
+      `[mensajeria] No se pudo publicar evento para orderId=${orden.orderId}:`,
+      error.message
+    );
   }
 }

@@ -190,7 +190,15 @@ functions:
             Fn::GetAtt: [ColaNotificaciones, Arn]
           batchSize: 5
           functionResponseType: ReportBatchItemFailures
-
+  ticketBodega:
+    handler: src/mensajeria/consumidores/kitchen/ticketBodega.handler
+    timeout: 10
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ColaKitchen, Arn]
+          batchSize: 5
+          functionResponseType: ReportBatchItemFailures
 resources:
   Resources:
     TablaProductos:
