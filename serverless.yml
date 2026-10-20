@@ -314,7 +314,7 @@ resources:
                   aws:SourceArn:
                     Ref: TopicEventosOrden
 
-    # Correo recibe todos los eventos publicados en el topic.
+    # Correo recibe todos los tipos de eventos publicados por este productor.
     SuscripcionNotificaciones:
       Type: AWS::SNS::Subscription
       Properties:
@@ -324,6 +324,12 @@ resources:
         Endpoint:
           Fn::GetAtt: [ColaNotificaciones, Arn]
         RawMessageDelivery: true
+        FilterPolicyScope: MessageAttributes
+        FilterPolicy:
+          tipo:
+            - PedidoAceptado
+            - PedidoDespachado
+            - CambioEstadoPedido
 
   # ---------- Mensajería: flujo de Kitchen ----------
 
